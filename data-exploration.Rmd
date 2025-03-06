@@ -1,0 +1,180 @@
+---
+title: "Data Exploration"
+author: "Andrea Allegrini"
+date: "2025-02-12"
+abstract: "In this document, we analyze the Titanic dataset to understand the fate of its passengers.
+"
+output:
+  html_document:
+    code_folding: show
+---
+
+# Introduction
+
+Lindner & Erixson (2012, PNAS) provide data on 18 maritime disasters since 1855, including the Titanic. Their dataset includes over 15,000 cases and 17 variables (available for free at PNAS: <https://www.pnas.org/content/109/33/13220>). The Titanic is one of two disasters (the HMS Birkenhead is the other) in which female survival exceeded male survival. From the abstract: “Women have a distinct survival disadvantage compared with men. Captains and crew survive at a significantly higher rate than passengers. Taken together, our findings show that human behavior in life-and-death situations is best captured by the expression ‘every man for himself.’”
+
+Is that the case? Let's try to understand more about the fate of the passengers.
+
+## Methods:
+
+In the following document, we will explore the Titanic dataset. This dataset provides information on the passengers of the ocean liner ['Titanic'](https://en.wikipedia.org/wiki/Sinking_of_the_Titanic). We adapt content from [Regression Modelling Strategies by Frank Harrell](https://hbiostat.org/rmsc/intro). Along the way we will learn to use a few useful functions from the RMS and Hmisc packages, while applying some best practices in project management and reporting.
+
+## Descriptive Statistics
+
+We will begin with some descriptive statistics:
+
+```{r Loading Libraries }
+
+# Install required packages if not already installed
+packages <- c("Hmisc", "dplyr", "skimr", "kableExtra","dplyr")
+
+new_packages <- packages[!(packages %in% installed.packages()[,"Package"])]
+
+if(length(new_packages)) install.packages(new_packages)
+
+library(ggplot2)
+library(Hmisc)
+library(rms)
+library(skimr)  
+library(dplyr)
+library(kableExtra) #for prettier table HTML format
+
+```
+
+```{r Data Structure}
+
+#option will automatically generate HTML-styled tables rather than plain text
+options(prType='html') 
+
+#read in the titanic data 
+titanic3 <- readRDS("titanic3.rds") 
+
+# Create a list of variables to analyze
+v <- c('pclass', 'survived', 'age', 'sex', 'sibsp', 'parch')
+
+#selects specific columns from the titanic3 dataset and creates a new data frame called t3
+t3 <- titanic3[, v]
+
+#assigns a unit of measurement ('years') to the age column using the units() function
+units(t3$age) <- 'years'
+
+# Check data structure
+str(t3)  
+
+# Describe the data
+describe(t3)  
+skim(t3)
+
+
+```
+```
+
+
+
+
+Here we look at univariable summaries of survival rates:
+
+```{r}
+dd <- datadist(t3)
+# describe distributions of variables to rms
+options(datadist='dd')
+s <- summary(survived ~ age + sex + pclass +
+             cut2(sibsp,0:3) + cut2(parch,0:3), data=t3)
+plot(s, main='', subtitles=FALSE)
+```
+
+## Exploring Trends
+
+In this section, we will explore the dataset and try to identify trends in survival rates.
+
+We use nonparametric regression (loess) estimates of the relationship between age and survival probability.
+
+```{r}
+require(rms)
+library(Hmisc)
+library(ggplot2)
+
+b  <- scale_size_discrete(range=c(.1, .85))
+yl <- ylab(NULL)
+p1 <- ggplot(t3, aes(x=age, y=survived)) +
+      histSpikeg(survived ~ age, lowess=TRUE, data=t3) +
+      ylim(0,1) + yl
+
+p1
+```
+
+What we observe is that survival rates decrease as a funciton of age.
+
+Let's look at whether this relationship differs by gender:
+
+```{r}
+p2 <- ggplot(t3, aes(x=age, y=survived, color=sex)) +
+      histSpikeg(survived ~ age + sex, lowess=TRUE,
+                 data=t3) + ylim(0,1) + yl
+
+p2
+```
+
+And class:
+
+```{r}
+
+p3 <- ggplot(t3, aes(x=age, y=survived, size=pclass)) +
+      histSpikeg(survived ~ age + pclass, lowess=TRUE,
+                 data=t3) + b + ylim(0,1) + yl
+
+p3
+```
+
+Let's combine all this information:
+
+```{r}
+
+p4 <- ggplot(t3, aes(x=age, y=survived, color=sex,
+       size=pclass)) +
+      histSpikeg(survived ~ age + sex + pclass,
+                 lowess=TRUE, data=t3) +
+      b + ylim(0,1) + yl
+p4
+
+gridExtra::grid.arrange(p1, p2, p3, p4, ncol=2)   # combine 4
+
+```
+
+as a quick comparison:
+
+```{r}
+library(ggplot2)
+
+p1 <- ggplot(t3, aes(x = age, y = survived)) +
+      geom_smooth(method = "loess") +
+      ylim(0,1) +
+      ylab(NULL)
+
+p2 <- ggplot(t3, aes(x = age, y = survived, color = sex)) +
+      geom_smooth(method = "loess") +
+      ylim(0,1) +
+      ylab(NULL)
+
+p3 <- ggplot(t3, aes(x = age, y = survived, size = as.factor(pclass))) +
+      geom_smooth(method = "loess") +
+      ylim(0,1) +
+      ylab(NULL)
+
+p4 <- ggplot(t3, aes(x = age, y = survived, color = sex, size = as.factor(pclass))) +
+      geom_smooth(method = "loess") +
+      ylim(0,1) +
+      ylab(NULL)
+
+gridExtra::grid.arrange(p1, p2, p3, p4, ncol = 2)
+```
+
+The top-left panel shows unstratified estimates, while the other panels stratify by different variables.
+
+## Discussion
+
+Our findings confirm that passenger class, gender, and age had significant impacts on survival. Women had the highest survival rates, but the picture bicomes more nuanced when we stratify by other variables of interest.
+
+```{r}
+getwd()
+```
